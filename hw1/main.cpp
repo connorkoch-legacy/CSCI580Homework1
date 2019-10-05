@@ -25,7 +25,7 @@ struct csr_1{
 
 vector<double> resultParallel;
 csr_1 *csr = new csr_1;
-int NUM_THREADS = thread::hardware_concurrency();;
+int NUM_THREADS = thread::hardware_concurrency();
 
 void readFiles(string fileName){
     ifstream inputFile;
@@ -85,12 +85,6 @@ void readFiles(string fileName){
 
         csr->rowPtrs.push_back(csr->rowPtrs[i] + row2col[i].size());    //rowPtrs[i] = rowPtrs[i-1] + num values in row i
     }
-
-    // cout << "Values: " << csr->values.size() << "RowPtrs: " << csr->rowPtrs.size() << "cols: " << csr->cols.size() <<
-    //     "num Rows: " << csr->numRows << "num Cols: " << csr->numCols << "VectorValues: " << csr->vectorValues.size() << endl;
-    // cout << csr->rowPtrs[4163762] << " . " << csr->rowPtrs[4163763];
-
-    //return csr;
 }
 
 void* parallelMultiply(void* threadID){
@@ -98,7 +92,6 @@ void* parallelMultiply(void* threadID){
     int startRow = (int)((csr->numRows / (double)NUM_THREADS) * tid);
     int endRow = (int)((csr->numRows / (double)NUM_THREADS) * (tid+1));
 
-    //for(int i = startRow; i < endRow ; i++){
     for(int i = startRow; i < endRow; i++){
         for (int j = csr->rowPtrs[i]; j < csr->rowPtrs[i+1]; j++){
             resultParallel[i] += csr->values[j] * csr->vectorValues[csr->cols[j]];
@@ -131,6 +124,23 @@ vector<double> sparseMatrixMultiplication(){
 
     double diff = (1000000000 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec) / (double)1000000000;
     cout << endl << "My matrix multiplication: " << diff << " seconds" << endl;
+
+
+    //2
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    vector<double> resultParallel2;
+    resultParallel2.resize(csr->numRows);
+    #pragma omp parallel for
+    for(int i = 0; i < csr->numRows; i++){
+        for (int j = csr->rowPtrs[i]; j < csr->rowPtrs[i+1]; j++){
+            resultParallel2[i] += csr->values[j] * csr->vectorValues[csr->cols[j]];
+        }
+    }
+
+    clock_gettime(CLOCK_MONOTONIC, &end);
+
+    diff = (1000000000 * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec) / (double)1000000000;
+    cout << "OpenMP 'parallel for' directive matrix multiplication: " << diff << " seconds" << endl;
 
     // ofstream outFile("NREmultiplicationTest.txt", std::ios_base::app);
     // for(int i = 0; i < resultParallel.size(); i++){
@@ -193,14 +203,14 @@ void compareResults(vector<double> test, vector<double> correct){
         if(test[i] != correct[i]) wrongCount++;
     }
 
-    cout << "Number of differences between matrices: " << wrongCount << endl;
+    cout << "Number of differences between output 1-D vectors: " << wrongCount << endl;
 }
 
 int main(){
 
     vector<double> test;
     vector<double> correct;
-    string names[3] = {{"NLR/NLR.mtx"}, {"./delaunay_n19/delaunay_n19.mtx"}, {"channel-500x100x100-b050/channel-500x100x100-b050.mtx"}};
+    string names[3] = {{"NLR.mtx"}, {"delaunay_n19.mtx"}, {"channel-500x100x100-b050.mtx"}};
 
     for(int i = 0; i < 3; i++){
         readFiles(names[i]);
